@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>ASKA - Pilih spreadsheet bersama</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 0; padding: 20px; line-height: 1.5; }
+  button { font-size: 16px; padding: 12px 16px; margin: 6px 0; width: 100%; }
+  code { word-break: break-all; display: block; background: #eee; padding: 8px; border-radius: 6px; }
+  .err { color: #b00020; }
+</style>
+</head>
+<body>
+<h2>ASKA: pilih spreadsheet bersama</h2>
+<p id="msg">Memuat...</p>
+<button id="open" style="display:none">Buka pemilih file</button>
+<div id="result" style="display:none">
+  <p>File terpilih: <b id="name"></b></p>
+  <code id="fid"></code>
+  <button id="copy">Salin ID</button>
+  <p>Setelah disalin, kembali ke aplikasi ASKA (tombol Kembali), lalu tempel ID di kolom ID spreadsheet.</p>
+</div>
+<script>
+(function () {
+  // Parameter dikirim aplikasi lewat fragmen (#), yang tidak ikut terkirim ke server.
+  var params = {};
+  try {
+    location.hash.replace(/^#/, '').split('&').forEach(function (kv) {
+      var i = kv.indexOf('=');
+      if (i > 0) params[kv.slice(0, i)] = decodeURIComponent(kv.slice(i + 1));
+    });
+  } catch (e) { /* abaikan */ }
+  // Hapus token dari alamat secepat mungkin.
+  try { history.replaceState(null, '', location.pathname); } catch (e) { /* abaikan */ }
+
+  var TOKEN = params.t, KEY = params.k, APP_ID = params.p;
+  var msg = document.getElementById('msg');
+  function fail(t) { msg.className = 'err'; msg.textContent = t; }
+  if (!TOKEN || !KEY || !APP_ID) { fail('Parameter tidak lengkap. Buka halaman ini dari aplikasi ASKA.'); return; }
+
+  function show() {
+    try {
+      var shared = new google.picker.DocsView(google.picker.ViewId.SPREADSHEETS).setOwnedByMe(false).setIncludeFolders(false);
+      var all = new google.picker.DocsView(google.picker.ViewId.SPREADSHEETS).setIncludeFolders(false);
+      new google.picker.PickerBuilder()
+        .addView(shared).addView(all)
+        .setOAuthToken(TOKEN).setDeveloperKey(KEY).setAppId(APP_ID)
+        .setOrigin(location.protocol + '//' + location.host)
+        .setCallback(function (d) {
+          if (d.action === google.picker.Action.PICKED) {
+            var f = d.docs[0];
+            document.getElementById('name').textContent = f.name;
+            document.getElementById('fid').textContent = f.id;
+            document.getElementById('result').style.display = 'block';
+            msg.textContent = 'Selesai.';
+          } else if (d.action === google.picker.Action.CANCEL) {
+            msg.textContent = 'Dibatalkan. Tekan "Buka pemilih file" untuk mencoba lagi.';
+          }
+        }).build().setVisible(true);
+    } catch (e) { fail('Gagal membuka pemilih: ' + e.message); }
+  }
+
+  window.onApiLoad = function () {
+    gapi.load('picker', {
+      callback: function () { msg.textContent = 'Siap.'; document.getElementById('open').style.display = 'block'; show(); },
+      onerror: function () { fail('Gagal memuat modul pemilih file.'); }
+    });
+  };
+  document.getElementById('open').onclick = show;
+  document.getElementById('copy').onclick = function () {
+    var id = document.getElementById('fid').textContent;
+    var p = navigator.clipboard ? navigator.clipboard.writeText(id) : Promise.reject();
+    p.then(function () { msg.textContent = 'ID disalin.'; },
+           function () { msg.textContent = 'Salin manual: tekan lama ID di atas.'; });
+  };
+  var s = document.createElement('script');
+  s.src = 'https://apis.google.com/js/api.js?onload=onApiLoad';
+  s.onerror = function () { fail('Gagal memuat apis.google.com'); };
+  document.head.appendChild(s);
+})();
+</script>
+</body>
+</html>
