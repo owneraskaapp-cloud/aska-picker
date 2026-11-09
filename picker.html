@@ -3,8 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- "origin": hanya asal situs (tanpa jalur/fragmen) yang dikirim ke Google, dibutuhkan agar API key dengan pembatasan situs diterima. Token ada di fragmen dan tidak pernah ikut terkirim. -->
 <meta name="referrer" content="origin">
-<title>ASKA · Pilih file bersama</title>
+<title>ASKA · Pilih file atau folder bersama</title>
 <style>
   body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: #0b0f14; color: #e8edf2; }
   main { max-width: 480px; margin: 0 auto; padding: 28px 20px; }
@@ -24,10 +25,11 @@
   Parameter dikirim lewat FRAGMEN (#), tidak pernah terkirim ke server hosting, dan langsung dihapus dari alamat.
     t = token akses Google (izin drive.file, ±1 jam)   k = API key Picker   p = Project number (appId)
     s = kode cocok sekali pakai dari aplikasi            a = nama paket aplikasi (untuk tautan balik)
+    m = "folder" untuk memilih FOLDER foto nota bersama (default: pilih file spreadsheet)
   Halaman ini statis, tidak memuat skrip selain apis.google.com, dan tidak menyimpan apa pun.
 -->
 <main>
-  <h1>Pilih file keuangan bersama</h1>
+  <h1 id="head">Pilih file keuangan bersama</h1>
   <p id="lead">Memuat pemilih file Google…</p>
   <div id="msg" class="hide"></div>
   <a id="back" class="btn hide" href="#">Kembali ke ASKA</a>
@@ -43,9 +45,11 @@
 
   var TOKEN = q.t || '', KEY = q.k || '', APP_ID = q.p || '', STATE = q.s || '';
   var PKG = /^[a-zA-Z][\w.]{2,80}$/.test(q.a || '') ? q.a : 'id.aska.app.dev';
+  var FOLDER = q.m === 'folder'; // mode folder: pasangan memilih folder "ASKA Nota" milik Owner
   var $ = function (id) { return document.getElementById(id); };
 
   function backUrl(params) {
+    if (FOLDER) params.m = 'folder';
     var qs = Object.keys(params).map(function (k) { return k + '=' + encodeURIComponent(params[k]); }).join('&');
     return 'intent://picked?' + qs + '#Intent;scheme=aska;package=' + PKG + ';end';
   }
@@ -62,6 +66,8 @@
     offerBack({ s: STATE, err: '1' }, false);
   }
 
+  if (FOLDER) $('head').textContent = 'Pilih folder foto nota bersama';
+
   if (!TOKEN || !KEY || !/^\d+$/.test(APP_ID)) {
     $('lead').textContent = '';
     show('err', 'Halaman ini harus dibuka dari aplikasi ASKA (Pengaturan › Pasangan › Buka file bersama).');
@@ -70,13 +76,21 @@
 
   function openPicker() {
     try {
-      var shared = new google.picker.DocsView(google.picker.ViewId.SPREADSHEETS).setOwnedByMe(false).setIncludeFolders(false);
-      var all = new google.picker.DocsView(google.picker.ViewId.SPREADSHEETS).setIncludeFolders(false);
+      var shared, all;
+      if (FOLDER) {
+        shared = new google.picker.DocsView(google.picker.ViewId.FOLDERS).setOwnedByMe(false).setIncludeFolders(true).setSelectFolderEnabled(true)
+          .setMimeTypes('application/vnd.google-apps.folder');
+        all = new google.picker.DocsView(google.picker.ViewId.FOLDERS).setIncludeFolders(true).setSelectFolderEnabled(true)
+          .setMimeTypes('application/vnd.google-apps.folder');
+      } else {
+        shared = new google.picker.DocsView(google.picker.ViewId.SPREADSHEETS).setOwnedByMe(false).setIncludeFolders(false);
+        all = new google.picker.DocsView(google.picker.ViewId.SPREADSHEETS).setIncludeFolders(false);
+      }
       new google.picker.PickerBuilder()
         .addView(shared).addView(all)
         .setOAuthToken(TOKEN).setDeveloperKey(KEY).setAppId(APP_ID)
         .setOrigin(location.protocol + '//' + location.host)
-        .setTitle('Pilih file ASKA yang dibagikan pasangan')
+        .setTitle(FOLDER ? 'Pilih folder ASKA Nota dari pasangan' : 'Pilih file ASKA yang dibagikan pasangan')
         .setCallback(function (data) {
           if (data.action === google.picker.Action.PICKED) {
             var d = data.docs[0];
@@ -90,7 +104,9 @@
             offerBack({ s: STATE, cancel: '1' }, false);
           }
         }).build().setVisible(true);
-      $('lead').textContent = 'Pilih file keuangan yang dibagikan pasangan Anda (tab "Dibagikan kepada saya").';
+      $('lead').textContent = FOLDER
+        ? 'Pilih folder "ASKA Nota" yang dibagikan pasangan Anda (tab "Dibagikan kepada saya"), lalu ketuk Pilih.'
+        : 'Pilih file keuangan yang dibagikan pasangan Anda (tab "Dibagikan kepada saya").';
     } catch (e) { fail('Pemilih file gagal dibuka (' + (e && e.message ? e.message : 'galat') + ').'); }
   }
   $('again').addEventListener('click', openPicker);
