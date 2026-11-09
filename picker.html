@@ -78,9 +78,10 @@
     try {
       var shared, all;
       if (FOLDER) {
-        shared = new google.picker.DocsView(google.picker.ViewId.FOLDERS).setOwnedByMe(false).setIncludeFolders(true).setSelectFolderEnabled(true)
+        // Pola resmi Google untuk memilih folder: ViewId.DOCS + filter tipe folder (bukan ViewId.FOLDERS lama, yang di HP 2 menghasilkan galat 403 di dalam pemilih).
+        shared = new google.picker.DocsView(google.picker.ViewId.DOCS).setOwnedByMe(false).setIncludeFolders(true).setSelectFolderEnabled(true)
           .setMimeTypes('application/vnd.google-apps.folder');
-        all = new google.picker.DocsView(google.picker.ViewId.FOLDERS).setIncludeFolders(true).setSelectFolderEnabled(true)
+        all = new google.picker.DocsView(google.picker.ViewId.DOCS).setIncludeFolders(true).setSelectFolderEnabled(true)
           .setMimeTypes('application/vnd.google-apps.folder');
       } else {
         shared = new google.picker.DocsView(google.picker.ViewId.SPREADSHEETS).setOwnedByMe(false).setIncludeFolders(false);
